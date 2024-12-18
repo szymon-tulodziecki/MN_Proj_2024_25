@@ -19,6 +19,7 @@ class Etykieta(QGraphicsRectItem):
         self.kierunek_zmiany_rozmiaru = None
 
     def hoverMoveEvent(self, event):
+        """" Metoda klasy usprawniająca pracę z etykietą (rozmiar, przesuwanie itp.) """
         super().hoverMoveEvent(event)
         prostokat = self.rect()
         margin = 5
@@ -55,6 +56,7 @@ class Etykieta(QGraphicsRectItem):
             self.setCursor(Qt.OpenHandCursor)
 
     def mouseMoveEvent(self, event):
+        """ Metoda klasy pozwalająca na przesuwanie etykiety """
         if self.zmiana_rozmiaru:
             self.zmiana_rozmiaru = False
             return
@@ -82,6 +84,7 @@ class Etykieta(QGraphicsRectItem):
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        """ Metoda klasy pozwalająca na zmianę rozmiaru etykiety """
         self.zmiana_rozmiaru = False
         super().mouseReleaseEvent(event)
         if self.scene() and hasattr(self.scene(), 'aktualizuj_etykieta'):
