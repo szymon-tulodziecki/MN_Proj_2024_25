@@ -1,5 +1,5 @@
-import os 
-import sys 
+import os
+import sys
 import json
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, \
     QGraphicsScene, QGraphicsView, QComboBox, QWidget, QGraphicsRectItem, QGraphicsItem, QStatusBar
@@ -9,9 +9,9 @@ from PyQt5.QtCore import Qt, QRectF
 
 class Etykieta(QGraphicsRectItem):
     """ Klasa pozwalająca na utworzenie etykiety na obrazie """
-    def __init__(self, x, y, szerokosc, wysokosc, kolol, parent = None):
+    def __init__(self, x, y, szerokosc, wysokosc, kolor, parent=None):
         super().__init__(x, y, szerokosc, wysokosc, parent)
-        self.setFlags(QGraphicsItem.ItemIsMSelectable | QGraphicsItem.ItemIsMovable | 
+        self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable |
                       QGraphicsItem.ItemSendsGeometryChanges | QGraphicsItem.ItemIsFocusable)
         self.setPen(QPen(QColor(kolor), 2))
         self.setAcceptHoverEvents(True)
@@ -90,18 +90,19 @@ class Etykieta(QGraphicsRectItem):
         if self.scene() and hasattr(self.scene(), 'aktualizuj_etykieta'):
             self.scene().aktualizuj_etykieta(self)
 
-class AplikacjaDoOznaczaniaObrazow(QMainWindow):
+
+class AplikacjaOznaczaniaObrazow(QMainWindow):
     """ Klasa główna aplikacji """
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Aplikacja do Oznaczania Obrazów")
         self.setGeometry(100, 100, 1200, 800)
 
-        self.folder_z_obrazami  QFileDialog.getExistingDirectory(self, "Wybierz folder z obrazami")
+        self.folder_z_obrazami = QFileDialog.getExistingDirectory(self, "Wybierz folder z obrazami")
         if not self.folder_z_obrazami:
             sys.exit("Nie wybrano folderu z obrazami")
 
-        self.lista_obrazow = [f for f in os.listdir(self.folder_obrazow) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        self.lista_obrazow = [f for f in os.listdir(self.folder_z_obrazami) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         self.liczba_obrazow = len(self.lista_obrazow)
         self.indeks_obecnego_obrazu = 0
         self.etykiety = []
@@ -114,9 +115,10 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
         self.min_zoom = 0.2
         self.max_zoom = 2.0
 
-        self.inicjalizujUI()
+        self.inicjalizuj_UI()
 
-     def inicjalizujUI(self):
+    def inicjalizuj_UI(self):
+        """ Metoda inicjalizująca interfejs użytkownika """
         glowny_uklad = QVBoxLayout()
 
         gorny_uklad = QHBoxLayout()
@@ -170,8 +172,9 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
         self.zaladuj_obraz()
 
     def zaladuj_obraz(self):
+        """ Metoda wczytująca obraz do aplikacji """
         if self.indeks_obecnego_obrazu < len(self.lista_obrazow):
-            sciezka_obrazu = os.path.join(self.folder_obrazow, self.lista_obrazow[self.indeks_obecnego_obrazu])
+            sciezka_obrazu = os.path.join(self.folder_z_obrazami, self.lista_obrazow[self.indeks_obecnego_obrazu])
             self.obraz = QImage(sciezka_obrazu)
             self.current_image = self.obraz
             pixmapa = QPixmap.fromImage(self.obraz)
@@ -190,6 +193,7 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
             self.close()
 
     def wysrodkuj_obraz(self, pixmapa):
+        """ Metoda pozwalająca na wyśrodkowanie obrazu w oknie aplikacji """
         prostokat_sceny = self.widok.sceneRect()
         szerokosc_obrazu, wysokosc_obrazu = pixmapa.width(), pixmapa.height()
 
@@ -199,10 +203,11 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
         self.widok.setSceneRect(przesuniecie_x, przesuniecie_y, szerokosc_obrazu, wysokosc_obrazu)
 
     def aktualizuj_licznik_obrazow(self):
-
+        """ Metoda aktualizująca licznik obrazów """
         self.etykieta_licznika_obrazow.setText(f"Obraz: {self.indeks_obecnego_obrazu + 1} / {self.liczba_obrazow}")
 
     def dodaj_etykieta(self):
+        """ Metoda dodająca etykietę do obrazu """
         klasa = self.wybor_klasy.currentText()
         if klasa == 'brak':
             self.etykiety.append({
@@ -210,7 +215,7 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
                 'element': None
             })
         else:
-            etykieta = EtykietaDoZmianyRozmiaru(50, 50, 100, 100, self.kolory[self.indeks_obecnego_koloru])
+            etykieta = Etykieta(50, 50, 100, 100, self.kolory[self.indeks_obecnego_koloru])
             self.scena.addItem(etykieta)
             self.etykiety.append({
                 'klasa': klasa,
@@ -219,16 +224,19 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
             self.indeks_obecnego_koloru = (self.indeks_obecnego_koloru + 1) % len(self.kolory)
 
     def resetuj_etykiety(self):
+        """ Metoda resetująca etykiety """
         self.etykiety.clear()
         self.scena.clear()
         self.zaladuj_obraz()
 
     def aktualizuj_etykieta(self, element):
+        """ Metoda aktualizująca etykietę """
         for etykieta in self.etykiety:
             if etykieta['element'] == element:
                 etykieta['prostokat'] = element.rect().getRect()
 
     def zapisz_adnotacje(self):
+        """ Metoda zapisująca adnotacje """
         if any(etykieta['klasa'] == 'samochod' for etykieta in self.etykiety) and not any(
                 etykieta['element'] for etykieta in self.etykiety if etykieta['klasa'] == 'samochod'):
             self.statusBar().showMessage("Proszę dodać przynajmniej jedną etykietę dla 'samochod'!", 3000)
@@ -274,7 +282,7 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
         self.zaladuj_obraz()
 
     def wheelEvent(self, event):
-
+        """ Metoda obsługująca zdarzenie przewijania kółkiem myszy """
         delta = event.angleDelta().y()
         if delta > 0:
             if self.wspolczynnik_zoom < self.max_zoom:
@@ -283,12 +291,12 @@ class AplikacjaDoOznaczaniaObrazow(QMainWindow):
             if self.wspolczynnik_zoom > self.min_zoom:
                 self.wspolczynnik_zoom -= 0.1
 
-
         self.widok.setTransform(QTransform().scale(self.wspolczynnik_zoom, self.wspolczynnik_zoom))
         event.accept()
 
 
 if __name__ == '__main__':
+    """ Uruchomienie aplikacji """
     app = QApplication(sys.argv)
     ex = AplikacjaOznaczaniaObrazow()
     ex.show()
