@@ -233,7 +233,8 @@ class AplikacjaOznaczaniaObrazow(QMainWindow):
         """ Metoda aktualizująca etykietę """
         for etykieta in self.etykiety:
             if etykieta['element'] == element:
-                etykieta['prostokat'] = element.rect().getRect()
+                rect = element.rect()
+                etykieta['prostokat'] = [rect.left(), rect.top(), rect.right(), rect.bottom()]
 
     def zapisz_adnotacje(self):
         """ Metoda zapisująca adnotacje """
@@ -249,13 +250,13 @@ class AplikacjaOznaczaniaObrazow(QMainWindow):
                 prostokat = []
             else:
                 rect = etykieta['element'].rect()
-                x, y, szerokosc, wysokosc = rect.x(), rect.y(), rect.width(), rect.height()
+                x_min, y_min, x_max, y_max = rect.left(), rect.top(), rect.right(), rect.bottom()
 
-                x = max(0, x)
-                y = max(0, y)
-                szerokosc = min(self.current_image.width() - x, szerokosc)
-                wysokosc = min(self.current_image.height() - y, wysokosc)
-                prostokat = [x, y, szerokosc, wysokosc]
+                x_min = max(0, x_min)
+                y_min = max(0, y_min)
+                x_max = min(self.current_image.width(), x_max)
+                y_max = min(self.current_image.height(), y_max)
+                prostokat = [x_min, y_min, x_max, y_max]
 
             adnotacje.append({
                 'klasa': klasa,
