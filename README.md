@@ -12,3 +12,10 @@ Wykonaj następujące zadania:
     - Porównaj ze sobą rezultaty uzyskane przy użyciu 5 modeli.
     - Na maksymalnym poziomie wykonania projektu należy samodzielnie wykonać trenning wybranego modelu (jednego lub więcej) i na nim pokazać procedurę klasyfikacji wybranych obiektów w obrazach.
     - W raporcie przedstaw analizę jakości uzyskanego rezultatu. Możesz również przedstawić narzędzia (programy, biblioteki), które zostały  wykorzystane.
+
+
+
+1. aplikacja_do_etykietowania.py jest to program do etykietowania zdjęć, po uruchomieniu oczekiwane jest wybranie folderu ze zdjęciami. Następnie inicjowana jest graficzna aplikacja, która pozwala na nakładanie ramek/etykiet
+w obrębie zdjęcia za pomocą suwaków. Współrzędne obiektu zapisywane są w pliku adnotacje.jsos (x, y, dlugosc, szerokosc), gdzie x, y są współrzędnymi lewego górnego rogu etykiety
+2. Przygotowany plik adnotacje.json pozwala na wykonanie dataset'u i trenowanie na jego podstawie modelu (FastRCNN). Tak przetrenowany model jest zapisywany, w celu uniknięcia konieczności wielokrotnego powtarzania tej czynności (plik: trenowanie.py)
+3. Przetrenowany model można użyć do sprawdzenia jego działania. Plik testowanie.py uruchamia przetrenowany model na zdjeciach testowych i zwraca je z oznczeniami
