@@ -1,22 +1,38 @@
-import json
 import os
+import json
 import shutil
 
-with open('adnotacje.json', 'r') as f:
-    dane = json.load(f)
+folder_zdj = "sciezka_do_zdjec"
+folder_dodane = "sciezka_docelowa"
 
-nazwy_plikow_obrazow = [element['obraz'] for element in dane]
+sciezka_do_json = "adnotacje.json"
 
-katalog_zrodlowy = 'zdj'
-katalog_docelowy = 'dodane'
+try:
+    with open(sciezka_do_json, "r") as plik:
+        dane = json.load(plik)
+except FileNotFoundError:
+    print(f"Plik {sciezka_do_json} nie został znaleziony.")
+    exit()
+except json.JSONDecodeError as e:
+    print(f"Błąd w formacie pliku JSON: {e}")
+    exit()
 
-os.makedirs(katalog_docelowy, exist_ok=True)
+if not os.path.exists(folder_dodane):
+    os.makedirs(folder_dodane)
 
-for nazwa_pliku in nazwy_plikow_obrazow:
-    sciezka_zrodlowa = os.path.join(katalog_zrodlowy, nazwa_pliku)
-    sciezka_docelowa = os.path.join(katalog_docelowy, nazwa_pliku)
-    if os.path.exists(sciezka_zrodlowa):
-        shutil.move(sciezka_zrodlowa, sciezka_docelowa)
-        print(f'Przeniesiono: {nazwa_pliku}')
+for element in dane:
+    nazwa_zdjecia = element.get("image")
+    if nazwa_zdjecia:
+        sciezka_zrodlowa = os.path.join(folder_zdj, nazwa_zdjecia)
+        sciezka_docelowa = os.path.join(folder_dodane, nazwa_zdjecia)
+
+        if os.path.exists(sciezka_zrodlowa):
+            try:
+                shutil.move(sciezka_zrodlowa, sciezka_docelowa)
+                print(f"Przeniesiono: {nazwa_zdjecia}")
+            except Exception as e:
+                print(f"Błąd podczas przenoszenia {nazwa_zdjecia}: {e}")
+        else:
+            print(f"Plik {nazwa_zdjecia} nie istnieje w folderze {folder_zdj}.")
     else:
-        print(f'Plik nie znaleziony: {nazwa_pliku}')
+        print("Nie znaleziono nazwy zdjęcia w jednym z elementów JSON.")
