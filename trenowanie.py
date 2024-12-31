@@ -1,46 +1,83 @@
-import torch
-import torchvision
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torch.utils.data import DataLoader
-from PIL import Image
+import json
 import os
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
-from torchvision.transforms import transforms
-from torchvision.ops import nms
-import timeit
+import torch
+from torch.utils.data import Dataset, DataLoader
+from PIL import Image
+import torchvision.transforms as transforms
+import torchvision
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, AnchorGenerator
+from sklearn.model_selection import train_test_split
 
-class CustomTestDataset(torch.utils.data.Dataset):
-    def __init__(self, img_dir, transform=None):
+class CustomDataset(Dataset):
+    """Tworzenie dataset'u zgodnie z https://www.geeksforgeeks.org/image-datasets-dataloaders-and-transforms-in-pytorch/"""
+    def __init__(self, data, img_dir, transform=None):
+        self.data = data
         self.img_dir = img_dir
         self.transform = transform
-        self.imgs = [img for img in sorted(os.listdir(img_dir)) if img.lower().endswith('.jpg')]
 
     def __len__(self):
-        return len(self.imgs)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.imgs[idx])
-        image = Image.open(img_path).convert("RGB")
+        img_name = os.path.join(self.img_dir, self.data[idx]['image'])
+        image = Image.open(img_name).convert("RGB")
+        annotations = self.data[idx]['annotations']
+
+        boxes = []
+        labels = []
+        for anno in annotations:
+            if anno['class'] == 'samochod':
+                x_min, y_min, szerokosc, wysokosc = anno['bbox']
+                x_max, y_max = x_min + szerokosc, y_min + wysokosc
+                if (x_max - x_min) > 0 and (y_max - y_min) > 0:
+                    boxes.append([x_min, y_min, x_max, y_max])
+                    labels.append(1)
+
+        if len(boxes) == 0:
+            return self.__getitem__((idx + 1) % len(self.data))
+
+        boxes = torch.as_tensor(boxes, dtype=torch.float32)
+        labels = torch.as_tensor(labels, dtype=torch.int64)
+
+        target = {}
+        target['boxes'] = boxes
+        target['labels'] = labels
 
         if self.transform:
             image = self.transform(image)
 
-        return image, self.imgs[idx]
+        return image, target
+
+json_path = 'adnotacje.json'
+img_dir = 'dodane'
+
+with open(json_path, 'r', encoding='utf-8') as f:
+    all_data = json.load(f)
+
+train_data, val_data = train_test_split(all_data, test_size=0.2, random_state=42)
+
+transform = transforms.Compose([
+    transforms.ToTensor()
+])
+
+train_dataset = CustomDataset(train_data, img_dir, transform=transform)
+val_dataset = CustomDataset(val_data, img_dir, transform=transform)
+
+train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, collate_fn=lambda x: tuple(zip(*x)))
+val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, collate_fn=lambda x: tuple(zip(*x)))
 
 def get_model(num_classes, backbone='resnet50'):
     if backbone == 'resnet50':
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=None)  # Set weights to None since we're loading from a file
+        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights="DEFAULT")
     elif backbone == 'resnet101':
-        backbone = torchvision.models.resnet101(weights=None)  # Set weights to None
+        backbone = torchvision.models.resnet101(weights="DEFAULT")
         backbone = torch.nn.Sequential(*list(backbone.children())[:-2])
         backbone.out_channels = 2048
 
-        anchor_generator = torchvision.models.detection.rpn.AnchorGenerator(
-            sizes=((32, 64, 128, 256, 512),),
-            aspect_ratios=((0.5, 1.0, 2.0),) * 5
-        )
+        anchor_sizes = ((32, 64, 128, 256, 512),)
+        aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+
+        anchor_generator = AnchorGenerator(sizes=anchor_sizes, aspect_ratios=aspect_ratios)
 
         model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator)
     else:
@@ -51,95 +88,48 @@ def get_model(num_classes, backbone='resnet50'):
 
     return model
 
-num_classes = 2  
+num_classes = 2
 
 model_resnet50 = get_model(num_classes, backbone='resnet50')
 model_resnet101 = get_model(num_classes, backbone='resnet101')
 
-model_resnet50.load_state_dict(torch.load('faster_rcnn_resnet50_model.pth'))
-model_resnet101.load_state_dict(torch.load('faster_rcnn_resnet101_model.pth'))
-
-model_resnet50.eval()
-model_resnet101.eval()
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model_resnet50.to(device)
-model_resnet101.to(device)
+model_resnet50 = model_resnet50.to(device)
+model_resnet101 = model_resnet101.to(device)
 
-transform = transforms.Compose([
-    transforms.ToTensor()
-])
+import torch.optim as optim
 
-test_dir = 'test'
-test_dataset = CustomTestDataset(test_dir, transform=transform)
-test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
-def evaluate_model(model, test_loader, device):
-    model.eval()
-    times = []
-    all_scores = []
-
-    for images, img_names in test_loader:
+def train_one_epoch(model, optimizer, data_loader, device):
+    model.train()
+    total_loss = 0.0
+    for images, targets in data_loader:
         images = list(img.to(device) for img in images)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        start_time = timeit.default_timer()
-        with torch.no_grad():
-            predictions = model(images)
-        end_time = timeit.default_timer()
-        inference_time = end_time - start_time
-        times.append(inference_time)
+        loss_dict = model(images, targets)
+        losses = sum(loss for loss in loss_dict.values())
 
-        for image, img_name, prediction in zip(images, img_names, predictions):
-            boxes = prediction['boxes']
-            scores = prediction['scores']
+        optimizer.zero_grad()
+        losses.backward()
+        optimizer.step()
 
-            keep = nms(boxes, scores, iou_threshold=0.4)
-            boxes = boxes[keep]
-            scores = scores[keep]
+        total_loss += losses.item()
 
-            confidence_threshold = 0.75
-            high_confidence_idxs = scores > confidence_threshold
-            scores = scores[high_confidence_idxs].cpu().numpy()
+    return total_loss / len(data_loader)
 
-            all_scores.extend(scores)
+optimizer_resnet50 = optim.SGD(model_resnet50.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+optimizer_resnet101 = optim.SGD(model_resnet101.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
 
-    avg_time = np.mean(times)
-    std_time = np.std(times)
-    avg_score = np.mean(all_scores) if all_scores else 0
-    std_score = np.std(all_scores) if all_scores else 0
-    return avg_time, std_time, avg_score, std_score
+num_epochs = 5
 
-avg_time_resnet50, std_time_resnet50, avg_score_resnet50, std_score_resnet50 = evaluate_model(model_resnet50, test_loader, device)
-avg_time_resnet101, std_time_resnet101, avg_score_resnet101, std_score_resnet101 = evaluate_model(model_resnet101, test_loader, device)
+for epoch in range(num_epochs):
+    train_loss_resnet50 = train_one_epoch(model_resnet50, optimizer_resnet50, train_loader, device)
+    train_loss_resnet101 = train_one_epoch(model_resnet101, optimizer_resnet101, train_loader, device)
+    print(f"Epoka [{epoch+1}/{num_epochs}], Strata ResNet-50: {train_loss_resnet50:.4f}, Strata ResNet-101: {train_loss_resnet101:.4f}")
 
-print("\n\n")
-print(f"ResNet-50: Średni czas predykcji: {avg_time_resnet50:.4f} sekund, Odchylenie standardowe: {std_time_resnet50:.4f}")
-print(f"ResNet-50: Średnia wartość predykcji: {avg_score_resnet50:.4f}, Odchylenie standardowe tej wartości: {std_score_resnet50:.4f}")
-print(f"ResNet-101: Średni czas predykcji: {avg_time_resnet101:.4f} sekund, Odchylenie standardowe: {std_time_resnet101:.4f}")
-print(f"ResNet-101: Średnia wartość predykcji: {avg_score_resnet101:.4f}, Odchylenie standardowe tej wartości: {std_score_resnet101:.4f}")
-print("\n\n")
-
-for (image_resnet50, img_name_resnet50, boxes_resnet50, scores_resnet50), (image_resnet101, img_name_resnet101, boxes_resnet101, scores_resnet101) in zip(results_resnet50, results_resnet101):
-    fig, axs = plt.subplots(1, 2, figsize=(16, 8))
-
-    ax = axs[0]
-    img_np = image_resnet50.permute(1, 2, 0).cpu().numpy()
-    ax.imshow(img_np)
-    for box, score in zip(boxes_resnet50, scores_resnet50):
-        x1, y1, x2, y2 = box
-        rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-        ax.text(x1, y1 - 5, f'{score:.2f}', color='red', fontsize=12)
-    ax.set_title(f"Wyniki ResNet-50 dla {img_name_resnet50}")
-
-    ax = axs[1]
-    img_np = image_resnet101.permute(1, 2, 0).cpu().numpy()
-    ax.imshow(img_np)
-    for box, score in zip(boxes_resnet101, scores_resnet101):
-        x1, y1, x2, y2 = box
-        rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-        ax.text(x1, y1 - 5, f'{score:.2f}', color='red', fontsize=12)
-    ax.set_title(f"Wyniki ResNet-101 dla {img_name_resnet101}")
-
-    plt.show()
+model_save_path_resnet50 = 'faster_rcnn_resnet50_model.pth'
+model_save_path_resnet101 = 'faster_rcnn_resnet101_model.pth'
+torch.save(model_resnet50.state_dict(), model_save_path_resnet50)
+torch.save(model_resnet101.state_dict(), model_save_path_resnet101)
+print(f"Model ResNet-50 został zapisany w: {model_save_path_resnet50}")
+print(f"Model ResNet-101 został zapisany w: {model_save_path_resnet101}")
