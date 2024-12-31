@@ -31,9 +31,9 @@ class CustomTestDataset(torch.utils.data.Dataset):
 
 def get_model(num_classes, backbone='resnet50'):
     if backbone == 'resnet50':
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=None)  
+        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=None)
     elif backbone == 'resnet101':
-        backbone = torchvision.models.resnet101(weights=None)  
+        backbone = torchvision.models.resnet101(weights=None)
         backbone = torch.nn.Sequential(*list(backbone.children())[:-2])
         backbone.out_channels = 2048
 
@@ -78,6 +78,7 @@ def evaluate_model(model, test_loader, device):
     model.eval()
     times = []
     all_scores = []
+    results = []
 
     for images, img_names in test_loader:
         images = list(img.to(device) for img in images)
@@ -100,17 +101,20 @@ def evaluate_model(model, test_loader, device):
             confidence_threshold = 0.75 #ustawiamy próg pewności (żeby uniknąć wyświetlania zbyt wielu bounding boxów)
             high_confidence_idxs = scores > confidence_threshold
             scores = scores[high_confidence_idxs].cpu().numpy()
+            boxes = boxes[high_confidence_idxs].cpu().numpy()
 
             all_scores.extend(scores)
+
+            results.append((image, img_name, boxes, scores))
 
     avg_time = np.mean(times)
     std_time = np.std(times)
     avg_score = np.mean(all_scores) if all_scores else 0
     std_score = np.std(all_scores) if all_scores else 0
-    return avg_time, std_time, avg_score, std_score
+    return avg_time, std_time, avg_score, std_score, results
 
-avg_time_resnet50, std_time_resnet50, avg_score_resnet50, std_score_resnet50 = evaluate_model(model_resnet50, test_loader, device)
-avg_time_resnet101, std_time_resnet101, avg_score_resnet101, std_score_resnet101 = evaluate_model(model_resnet101, test_loader, device)
+avg_time_resnet50, std_time_resnet50, avg_score_resnet50, std_score_resnet50, results_resnet50 = evaluate_model(model_resnet50, test_loader, device)
+avg_time_resnet101, std_time_resnet101, avg_score_resnet101, std_score_resnet101, results_resnet101 = evaluate_model(model_resnet101, test_loader, device)
 
 print("\n\n")
 print(f"ResNet-50: Średni czas predykcji: {avg_time_resnet50:.4f} sekund, Odchylenie standardowe: {std_time_resnet50:.4f}")
