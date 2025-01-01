@@ -80,6 +80,40 @@ def get_model(num_classes, backbone='resnet50'):
         anchor_generator = AnchorGenerator(sizes=anchor_sizes, aspect_ratios=aspect_ratios)
 
         model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator)
+    elif backbone == 'mobilenetv2':
+        backbone = torchvision.models.mobilenet_v2(weights="DEFAULT").features
+        backbone.out_channels = 1280
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'], output_size=7, sampling_ratio=2)
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator, box_roi_pool=roi_pooler)
+    elif backbone == 'efficientnetb0':
+        backbone = torchvision.models.efficientnet_b0(weights="DEFAULT").features
+        backbone.out_channels = 1280
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'], output_size=7, sampling_ratio=2)
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator, box_roi_pool=roi_pooler)
+    elif backbone == 'vgg16':
+        backbone = torchvision.models.vgg16(weights="DEFAULT").features
+        backbone = torch.nn.Sequential(*list(backbone.children())[:-2])
+        backbone.out_channels = 512
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'], output_size=7, sampling_ratio=2)
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator, box_roi_pool=roi_pooler)
     else:
         raise ValueError("Unsupported backbone")
 
@@ -92,10 +126,16 @@ num_classes = 2
 
 model_resnet50 = get_model(num_classes, backbone='resnet50')
 model_resnet101 = get_model(num_classes, backbone='resnet101')
+model_mobilenetv2 = get_model(num_classes, backbone='mobilenetv2')
+model_efficientnetb0 = get_model(num_classes, backbone='efficientnetb0')
+model_vgg16 = get_model(num_classes, backbone='vgg16')
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model_resnet50 = model_resnet50.to(device)
 model_resnet101 = model_resnet101.to(device)
+model_mobilenetv2 = model_mobilenetv2.to(device)
+model_efficientnetb0 = model_efficientnetb0.to(device)
+model_vgg16 = model_vgg16.to(device)
 
 import torch.optim as optim
 
@@ -119,17 +159,32 @@ def train_one_epoch(model, optimizer, data_loader, device):
 
 optimizer_resnet50 = optim.SGD(model_resnet50.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
 optimizer_resnet101 = optim.SGD(model_resnet101.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+optimizer_mobilenetv2 = optim.SGD(model_mobilenetv2.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+optimizer_efficientnetb0 = optim.SGD(model_efficientnetb0.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+optimizer_vgg16 = optim.SGD(model_vgg16.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
 
-num_epochs = 5
+num_epochs = 10
 
 for epoch in range(num_epochs):
     train_loss_resnet50 = train_one_epoch(model_resnet50, optimizer_resnet50, train_loader, device)
     train_loss_resnet101 = train_one_epoch(model_resnet101, optimizer_resnet101, train_loader, device)
-    print(f"Epoka [{epoch+1}/{num_epochs}], Strata ResNet-50: {train_loss_resnet50:.4f}, Strata ResNet-101: {train_loss_resnet101:.4f}")
+    train_loss_mobilenetv2 = train_one_epoch(model_mobilenetv2, optimizer_mobilenetv2, train_loader, device)
+    train_loss_efficientnetb0 = train_one_epoch(model_efficientnetb0, optimizer_efficientnetb0, train_loader, device)
+    train_loss_vgg16 = train_one_epoch(model_vgg16, optimizer_vgg16, train_loader, device)
+    print(f"Epoka [{epoch+1}/{num_epochs}], Strata ResNet-50: {train_loss_resnet50:.4f}, Strata ResNet-101: {train_loss_resnet101:.4f}, Strata MobileNetV2: {train_loss_mobilenetv2:.4f}, Strata EfficientNetB0: {train_loss_efficientnetb0:.4f}, Strata VGG16: {train_loss_vgg16:.4f}")
 
 model_save_path_resnet50 = 'faster_rcnn_resnet50_model.pth'
 model_save_path_resnet101 = 'faster_rcnn_resnet101_model.pth'
+model_save_path_mobilenetv2 = 'faster_rcnn_mobilenetv2_model.pth'
+model_save_path_efficientnetb0 = 'faster_rcnn_efficientnetb0_model.pth'
+model_save_path_vgg16 = 'faster_rcnn_vgg16_model.pth'
 torch.save(model_resnet50.state_dict(), model_save_path_resnet50)
 torch.save(model_resnet101.state_dict(), model_save_path_resnet101)
+torch.save(model_mobilenetv2.state_dict(), model_save_path_mobilenetv2)
+torch.save(model_efficientnetb0.state_dict(), model_save_path_efficientnetb0)
+torch.save(model_vgg16.state_dict(), model_save_path_vgg16)
 print(f"Model ResNet-50 został zapisany w: {model_save_path_resnet50}")
 print(f"Model ResNet-101 został zapisany w: {model_save_path_resnet101}")
+print(f"Model MobileNetV2 został zapisany w: {model_save_path_mobilenetv2}")
+print(f"Model EfficientNetB0 został zapisany w: {model_save_path_efficientnetb0}")
+print(f"Model VGG16 został zapisany w: {model_save_path_vgg16}")

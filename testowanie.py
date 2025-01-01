@@ -1,6 +1,6 @@
 import torch
 import torchvision
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, AnchorGenerator
 from torch.utils.data import DataLoader
 from PIL import Image
 import os
@@ -10,6 +10,7 @@ import numpy as np
 from torchvision.transforms import transforms
 from torchvision.ops import nms
 import timeit
+import random
 
 class CustomTestDataset(torch.utils.data.Dataset):
     def __init__(self, img_dir, transform=None):
@@ -37,7 +38,37 @@ def get_model(num_classes, backbone='resnet50'):
         backbone = torch.nn.Sequential(*list(backbone.children())[:-2])
         backbone.out_channels = 2048
 
-        anchor_generator = torchvision.models.detection.rpn.AnchorGenerator(
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator)
+    elif backbone == 'mobilenetv2':
+        backbone = torchvision.models.mobilenet_v2(weights=None).features
+        backbone.out_channels = 1280
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator)
+    elif backbone == 'efficientnetb0':
+        backbone = torchvision.models.efficientnet_b0(weights=None).features
+        backbone.out_channels = 1280
+
+        anchor_generator = AnchorGenerator(
+            sizes=((32, 64, 128, 256, 512),),
+            aspect_ratios=((0.5, 1.0, 2.0),) * 5
+        )
+
+        model = torchvision.models.detection.FasterRCNN(backbone, num_classes=num_classes, rpn_anchor_generator=anchor_generator)
+    elif backbone == 'vgg16':
+        backbone = torchvision.models.vgg16(weights=None).features
+        backbone.out_channels = 512
+
+        anchor_generator = AnchorGenerator(
             sizes=((32, 64, 128, 256, 512),),
             aspect_ratios=((0.5, 1.0, 2.0),) * 5
         )
@@ -51,20 +82,18 @@ def get_model(num_classes, backbone='resnet50'):
 
     return model
 
+def get_random_color():
+    return (random.random(), random.random(), random.random(), 0.4)
+
 num_classes = 2
-
-model_resnet50 = get_model(num_classes, backbone='resnet50')
-model_resnet101 = get_model(num_classes, backbone='resnet101')
-
-model_resnet50.load_state_dict(torch.load('faster_rcnn_resnet50_model.pth'))
-model_resnet101.load_state_dict(torch.load('faster_rcnn_resnet101_model.pth'))
-
-model_resnet50.eval()
-model_resnet101.eval()
+backbones = ['resnet50', 'resnet101', 'mobilenetv2', 'efficientnetb0', 'vgg16']
+models = {backbone: get_model(num_classes, backbone) for backbone in backbones}
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model_resnet50.to(device)
-model_resnet101.to(device)
+for backbone in backbones:
+    models[backbone].load_state_dict(torch.load(f'faster_rcnn_{backbone}_model.pth'))
+    models[backbone].eval()
+    models[backbone].to(device)
 
 transform = transforms.Compose([
     transforms.ToTensor()
@@ -98,7 +127,7 @@ def evaluate_model(model, test_loader, device):
             boxes = boxes[keep]
             scores = scores[keep]
 
-            confidence_threshold = 0.75 #ustawiamy próg pewności (żeby uniknąć wyświetlania zbyt wielu bounding boxów)
+            confidence_threshold = 0.75  
             high_confidence_idxs = scores > confidence_threshold
             scores = scores[high_confidence_idxs].cpu().numpy()
             boxes = boxes[high_confidence_idxs].cpu().numpy()
@@ -113,37 +142,40 @@ def evaluate_model(model, test_loader, device):
     std_score = np.std(all_scores) if all_scores else 0
     return avg_time, std_time, avg_score, std_score, results
 
-avg_time_resnet50, std_time_resnet50, avg_score_resnet50, std_score_resnet50, results_resnet50 = evaluate_model(model_resnet50, test_loader, device)
-avg_time_resnet101, std_time_resnet101, avg_score_resnet101, std_score_resnet101, results_resnet101 = evaluate_model(model_resnet101, test_loader, device)
+evaluation_results = {}
+for backbone in backbones:
+    evaluation_results[backbone] = evaluate_model(models[backbone], test_loader, device)
 
-print("\n\n")
-print(f"ResNet-50: Średni czas predykcji: {avg_time_resnet50:.4f} sekund, Odchylenie standardowe: {std_time_resnet50:.4f}")
-print(f"ResNet-50: Średnia wartość predykcji: {avg_score_resnet50:.4f}, Odchylenie standardowe tej wartości: {std_score_resnet50:.4f}")
-print(f"ResNet-101: Średni czas predykcji: {avg_time_resnet101:.4f} sekund, Odchylenie standardowe: {std_time_resnet101:.4f}")
-print(f"ResNet-101: Średnia wartość predykcji: {avg_score_resnet101:.4f}, Odchylenie standardowe tej wartości: {std_score_resnet101:.4f}")
-print("\n\n")
+print("\nCzasy predykcji:")
+for backbone, (avg_time, std_time, _, _, _) in evaluation_results.items():
+    print(f"{backbone}: Średni czas: {avg_time:.4f} sekund, Odchylenie standardowe: {std_time:.4f}")
 
-for (image_resnet50, img_name_resnet50, boxes_resnet50, scores_resnet50), (image_resnet101, img_name_resnet101, boxes_resnet101, scores_resnet101) in zip(results_resnet50, results_resnet101):
-    fig, axs = plt.subplots(1, 2, figsize=(16, 8))
+print("\nWartości predykcji:")
+for backbone, (_, _, avg_score, std_score, _) in evaluation_results.items():
+    print(f"{backbone}: Średnia wartość: {avg_score:.4f}, Odchylenie standardowe: {std_score:.4f}")
 
-    ax = axs[0]
-    img_np = image_resnet50.permute(1, 2, 0).cpu().numpy()
-    ax.imshow(img_np)
-    for box, score in zip(boxes_resnet50, scores_resnet50):
-        x1, y1, x2, y2 = box
-        rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-        ax.text(x1, y1 - 5, f'{score:.2f}', color='red', fontsize=12)
-    ax.set_title(f"Wyniki ResNet-50 dla {img_name_resnet50}")
-
-    ax = axs[1]
-    img_np = image_resnet101.permute(1, 2, 0).cpu().numpy()
-    ax.imshow(img_np)
-    for box, score in zip(boxes_resnet101, scores_resnet101):
-        x1, y1, x2, y2 = box
-        rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor='r', facecolor='none')
-        ax.add_patch(rect)
-        ax.text(x1, y1 - 5, f'{score:.2f}', color='red', fontsize=12)
-    ax.set_title(f"Wyniki ResNet-101 dla {img_name_resnet101}")
-
+for img_name in test_dataset.imgs:
+    fig, axs = plt.subplots(1, len(backbones), figsize=(25, 5))
+    
+    if len(backbones) == 1:
+        axs = [axs]
+    
+    img_path = os.path.join(test_dir, img_name)
+    image = Image.open(img_path).convert("RGB")
+    img_np = np.array(image)
+    
+    for ax, backbone in zip(axs, backbones):
+        ax.imshow(img_np)
+        
+        for image, img_name_result, boxes, scores in evaluation_results[backbone][4]:
+            if img_name == img_name_result:
+                for box, score in zip(boxes, scores):
+                    x1, y1, x2, y2 = box
+                    rect = patches.Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=2, edgecolor=get_random_color(), facecolor=get_random_color())
+                    ax.add_patch(rect)
+                    ax.text(x1, y1 - 5, f'{score:.2f}', color='white', fontsize=12, bbox=dict(facecolor='black', alpha=0.75))
+        
+        ax.set_title(f"{backbone}")
+    
+    fig.suptitle(f"Wyniki dla {img_name}")
     plt.show()
