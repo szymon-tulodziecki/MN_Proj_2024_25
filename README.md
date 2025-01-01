@@ -1,21 +1,87 @@
-Projekt jest realizowany w grupach maksymalnie 3 osobowych. Należy zapisać się w kursie do grupy. Każda grupa pracuje na zestawie minimum 300 zdjęć. 
-Wykonaj następujące zadania:
+### Wybrany obiekt do klasyfikacji:
+- **Samochody**  
 
-    - Przygotuj folder z zapisanymi minimum 300 zdjęciami. Zdjęcia możesz pozyskać z udostępnionego zbioru, lub samodzielnie. 
-    - W Twoim projekcie danymi wejściowymi będzie zbiór obrazów. W ramach projektu dla każdego obrazu powinieneś przygotować plik zawierający etykiety obiektów wybranej klasy (np. osoba, znak drogowy, adres budynku itd.)
-    - W rezultacie dla zbioru 300 zdjęć należy stworzyć polik lub pliki z etykietami, zawierający zbiór współrzędnych (etykietę) oraz nazwę obiektów danej klasy znajdujących się na konkretnym zdjęciu.
-    - W zbiorze zdjęć samodzielnie wyodrębnij klasę obiektów, które będą oznaczane - czyli etykietowane.
-    - Do etykietowania możesz wykorzystać dowolne narzędzia programistyczne. Projekt będzie wyżej oceniany jeśli stworzysz i zaprezentujesz własny sposób etykietowania. Finalnie sposób etykietowania powinien być użyteczny przy pracy z biblioteką Pytorch.
-    - Ważne jest, aby przygotowany zbiór z etykietami był kompatybilny z Pytorch. Wykonaj eksport Twojego zbioru do Dataset w Pytorch, np tak jak opisano tutaj https://www.geeksforgeeks.org/image-datasets-dataloaders-and-transforms-in-pytorch/
-    - Wykonaj przykład klasyfikacji (wyodrębnienie obiektów graficznych) w Pytorch TorchVision, korzystając z opracowanego zbioru. W dokumentacji znajdziesz informacje dot. modeli, przykłady użycia modeli oraz szczegóły nt. przygotowania zbioru danych: https://pytorch.org/vision/stable/index.html
-    - Na minimalnym poziomie wykonania projektu przy klasyfikacji możesz użyć przetrenowanych modeli: https://pytorch.org/vision/stable/models.html#classification
-    - Porównaj ze sobą rezultaty uzyskane przy użyciu 5 modeli.
-    - Na maksymalnym poziomie wykonania projektu należy samodzielnie wykonać trenning wybranego modelu (jednego lub więcej) i na nim pokazać procedurę klasyfikacji wybranych obiektów w obrazach.
-    - W raporcie przedstaw analizę jakości uzyskanego rezultatu. Możesz również przedstawić narzędzia (programy, biblioteki), które zostały  wykorzystane.
+### Link do repozytorium projektu:
+- [Projekt na GitHub](https://github.com/szymon-tulodziecki/MN_Proj_2024_25)
+
+---
 
 
+## 2. Zdjęcia:
 
-1. aplikacja_do_etykietowania.py jest to program do etykietowania zdjęć, po uruchomieniu oczekiwane jest wybranie folderu ze zdjęciami. Następnie inicjowana jest graficzna aplikacja, która pozwala na nakładanie ramek/etykiet
-w obrębie zdjęcia za pomocą suwaków. Współrzędne obiektu zapisywane są w pliku adnotacje.jsos (x, y, dlugosc, szerokosc), gdzie x, y są współrzędnymi lewego górnego rogu etykiety
-2. Przygotowany plik adnotacje.json pozwala na wykonanie dataset'u i trenowanie na jego podstawie modelu (FastRCNN). Tak przetrenowany model jest zapisywany, w celu uniknięcia konieczności wielokrotnego powtarzania tej czynności (plik: trenowanie.py)
-3. Przetrenowany model można użyć do sprawdzenia jego działania. Plik testowanie.py uruchamia przetrenowany model na zdjeciach testowych i zwraca je z oznczeniami
+- **Źródło zdjęć**: [Roboflow Universe](https://universe.roboflow.com).
+- **Format nazw**: `1.jpg` - `330.jpg` (treningowe), `t1.jpg` - `t10.jpg` (testowe).
+- **Linki do zbiorów**:
+  - [Treningowy](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/dodane.tar.gz)
+  - [Testowy](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/test.tar.gz)
+
+---
+
+## 3. Etykietowanie obiektów:
+
+- **Aplikacja etykietująca**: [Kod aplikacji](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/aplikacja_do_etykietowania.py).  
+  - Graficzny interfejs użytkownika (GUI) stworzony w PyQt5.
+  - Dane zapisywane w formacie JSON z etykietami prostokątnymi, zgodne z wymogami PyTorch.
+  - Funkcjonalności: wybór folderu z obrazami, dodawanie etykiet, zapis, reset, obsługa błędów.
+
+---
+
+## 4. Eksport danych do Dataset PyTorch:
+
+- **Kod eksportu**: [Plik trenowanie.py](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/trenowanie.py).  
+- Użyte biblioteki: `torch`, `torchvision`.
+- Format przetwarzanych danych: `[x_min, y_min, x_max, y_max]`.
+- Konwersja na tensory dla zgodności z modelami PyTorch.
+
+---
+
+## 5. Trenowanie modelu Faster R-CNN:
+
+- **Użyte modele**: ResNet-50, ResNet-101.
+- **Kod**: [Plik trenowanie.py](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/trenowanie.py).
+- **Platforma**: [Google Colab](https://colab.google/) z wykorzystaniem GPU.
+- **Przebieg treningu**:
+  - Zbiór treningowy: 80%, walidacyjny: 20%.
+  - Modele przetrenowane przez 10 epok.
+  - Wyniki zapisane do plików `.pth` dla późniejszego wykorzystania.
+
+---
+
+## 6. Testowanie modeli Faster R-CNN:
+
+- **Kod testowy**: [Plik testowanie.py](https://github.com/szymon-tulodziecki/MN_Proj_2024_25/blob/main/testowanie.py).
+- Funkcjonalności:
+  - Testy na zbiorze testowym z progami pewności.
+  - Usuwanie nakładających się ramek.
+  - Wizualizacja wyników.
+
+---
+
+## 7. Wyniki i wnioski:
+
+- **Model ResNet-50**:
+  - Średni czas predykcji: 0.0832 sekundy.
+  - Średnia wartość predykcji: 0.9977.
+- **Model ResNet-101**:
+  - Średni czas predykcji: 0.0946 sekundy.
+  - Średnia wartość predykcji: 0.9821.
+- **Wnioski**:
+  - ResNet-50 lepiej radzi sobie z krótszym czasem i większą precyzją.
+  - Większy zbiór danych mógłby poprawić wyniki.
+
+---
+
+## 8. Źródła:
+
+1. [GeeksforGeeks: Image Datasets, Dataloaders, and Transforms in PyTorch](https://www.geeksforgeeks.org/image-datasets-dataloaders-and-transforms-in-pytorch/)
+2. [PyTorch Vision Documentation](https://pytorch.org/vision/stable/index.html)
+3. [PyTorch Pre-trained Models](https://pytorch.org/vision/stable/models.html#classification)
+4. [Roboflow Universe](https://universe.roboflow.com/)
+5. [Stanford Car Dataset Repository](https://github.com/sigopt/stanford-car-classification?tab=MIT-1-ov-file)
+6. [Learn OpenCV: PyTorch for Beginners](https://learnopencv.com/pytorch-for-beginners-basics/)
+7. [YouTube Tutorial: PyTorch Faster R-CNN](https://www.youtube.com/watch?v=oh7UO4IoAls)
+8. [GitHub: LabelImg](https://github.com/HumanSignal/labelImg)
+9. [Google Colab](https://colab.google/)
+
+---
+
